@@ -1,4 +1,5 @@
 const { red, yellow } = require('chalk');
+const util = require('util');
 
 class Logger {
   constructor(lvl = 0) {
@@ -13,7 +14,7 @@ class Logger {
    */
   write(lvl, msg, fmt = (x) => x) {
     if (lvl >= this.lvl) {
-      process.stdout.write(fmt(msg.map((m) => (typeof m === 'string' ? m : JSON.stringify(m))).join(' ')));
+      process.stdout.write(fmt(msg.map((m) => (typeof m === 'string' ? m : util.inspect(m))).join(' ')));
       process.stdout.write('\n');
     }
   }

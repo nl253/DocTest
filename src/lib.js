@@ -21,7 +21,7 @@ const run = async (file) => {
   const text = await readFile(p, { encoding: 'utf-8' });
   const parts = [text];
   for (const { given, expect } of iterDocs(text)) {
-    parts.push(`assert.deepStrictEqual(${given}, ${expect})`);
+    parts.push(`log.log('given', '', ${JSON.stringify(given)}); log.log('expect', ${JSON.stringify(expect)}); assert.deepStrictEqual(${given}, ${expect}); log.log('')`);
   }
   if (parts.length > 1) {
     log.log(yellow(p));

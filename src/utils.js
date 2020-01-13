@@ -9,18 +9,19 @@ const ignorePatterns = [
   '.git',
 ];
 
+const opts = {
+  ecmaVersion: 10,
+  allowReturnOutsideFunction: false,
+  allowReserved: true,
+  allowImportExportEverywhere: false,
+};
+
 /**
  * @param {string} text
  * @return {Generator<{given: string, expect: string}>}
  */
 const iterDocs = function* (text) {
   const comments = [];
-  const opts = {
-    ecmaVersion: 10,
-    allowReturnOutsideFunction: false,
-    allowReserved: true,
-    allowImportExportEverywhere: false,
-  };
   parse(text, {
     ...opts,
     sourceType: 'module',
@@ -48,22 +49,43 @@ const iterDocs = function* (text) {
 };
 
 /**
+ * @param {string} n
+ * @test {filterFn('./node_modules/some-file.js')} false
+ * @test {filterFn('script.ts')} true
+ * @test {filterFn('otherScript.js')} true
+ * @return {boolean}
+ */
+const notIgnoredFn = (n) => ignorePatterns.reduce((ok, pat) => ok && (n.indexOf(pat) < 0), true);
+
+/**
+ * @param {string} n
+ * @test {filterFn('README.md')} false
+ * @test {filterFn('my-directory')} true
+ * @test {filterFn('special.ts')} true
+ * @test {filterFn('woo.js')} true
+ * @return {boolean}
+ */
+const isValidFileOrDir = (n) => (n.search(/\.[jt]s$/i) >= 0 || basename(n).indexOf('.') < 0);
+
+/**
+ * @param {string} n
+ * @return {boolean}
+ */
+const filterFn = (n) => isValidFileOrDir(n) && notIgnoredFn(n);
+
+/**
+ * @param {string[]} ns
+ * @return {string[]}
+ */
+const preProcessFn = (ns) => ns.map((n) => resolve(n)).filter((n) => filterFn(n));
+
+/**
  * @param {string[]} nodes
  * @yields {string}
  * @return {AsyncGenerator<string>}
  */
 const collectFiles = async function* (nodes) {
-  /**
-   * @param {string} p
-   * @return {boolean}
-   */
-  const filterFn = (p) => (
-    p.endsWith('.js')
-    || p.endsWith('.ts')
-    || basename(p).indexOf('.') < 0)
-    // @ts-ignore
-    && ignorePatterns.reduce((ok, pat) => ok && (p.indexOf(pat) < 0), true);
-  for (const n of nodes.map((p) => resolve(p)).filter((p) => filterFn(p))) {
+  for (const n of preProcessFn(nodes)) {
     const stats = await lstat(n);
     if (stats.isFile()) {
       yield n;
