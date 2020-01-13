@@ -1,6 +1,6 @@
 const { lstat, readdir } = require('fs').promises;
 const { join, resolve, basename } = require('path');
-const { parseExpressionAt } = require('acorn');
+const { parseExpressionAt, parse } = require('acorn');
 
 const ignorePatterns = [
   'node_modules',
@@ -14,27 +14,36 @@ const ignorePatterns = [
  * @return {Generator<{given: string, expect: string}>}
  */
 const iterDocs = function* (text) {
-  for (const m of text.matchAll(/\/\*\*(.*?)\*\//gsm)) {
-    if (m[0].indexOf(' * @test {') >= 0) {
-      /** @type {string} */
-      // @ts-ignore
-      let innerMatch = m[0].match(/ \* @test \{([^\n]*)/)[0].replace('* @test {', '');
-      const astGiven = parseExpressionAt(innerMatch, 0, {
-        ecmaVersion: 9,
-        sourceType: 'script',
-      });
-      const given = innerMatch.slice(astGiven.start, astGiven.end);
-      innerMatch = innerMatch.slice(astGiven.end + 2);
-      const expectAst = parseExpressionAt(innerMatch, 0, {
-        ecmaVersion: 9,
-        sourceType: 'script',
-      });
-      const expect = innerMatch.slice(expectAst.start, expectAst.end);
-      yield {
-        given,
-        expect,
-      };
-    }
+  const comments = [];
+  const opts = {
+    ecmaVersion: 10,
+    allowReturnOutsideFunction: false,
+    allowReserved: true,
+    allowImportExportEverywhere: false,
+  };
+  parse(text, {
+    ...opts,
+    sourceType: 'module',
+    onComment: ((isBlock, comment) => {
+      if (isBlock && comment.search(/^\*\n\s+\*\s+/) >= 0) {
+        for (const c of comment
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line !== '' && line.search(/^\*\s+@test\s+\{/) >= 0)
+          .map((s) => s.replace(/^\*\s+@test\s+\{/, ''))) {
+          comments.push(c);
+        }
+      }
+    }),
+    allowHashBang: true,
+  });
+  for (let c of comments) {
+    const astGiven = parseExpressionAt(c, 0, { ...opts, sourceType: 'script' });
+    const given = c.slice(astGiven.start, astGiven.end);
+    c = c.slice(astGiven.end + 2);
+    const expectAst = parseExpressionAt(c, 0, { ...opts, sourceType: 'script' });
+    const expect = c.slice(expectAst.start, expectAst.end);
+    yield { given, expect };
   }
 };
 
