@@ -18,6 +18,7 @@ program
       try {
         log.startTime('run');
         await run(fPath);
+        log.log('');
         log.endTime('run');
         log.log('');
       } catch (e) {

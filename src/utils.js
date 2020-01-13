@@ -3,13 +3,19 @@ const { join, resolve, basename } = require('path');
 const { parseExpressionAt, parse } = require('acorn');
 
 const ignorePatterns = [
+  '.git',
+  '.history',
+  '.hg',
+  '.cache',
+  '.backup',
+  '.bak',
+  '.svn',
+  'bower_modules',
   'node_modules',
   'test',
-  'bower_modules',
-  '.git',
 ];
 
-const opts = {
+const OPTIONS_ACORN = {
   ecmaVersion: 10,
   allowReturnOutsideFunction: false,
   allowReserved: true,
@@ -18,33 +24,69 @@ const opts = {
 
 /**
  * @param {string} text
- * @return {Generator<{given: string, expect: string}>}
+ * @return {string[]}
  */
-const iterDocs = function* (text) {
+const getDocs = (text) => {
+  const regex = /^\*\n\s+\*\s+/;
   const comments = [];
-  parse(text, {
-    ...opts,
+  const options = {
+    ...OPTIONS_ACORN,
     sourceType: 'module',
     onComment: ((isBlock, comment) => {
-      if (isBlock && comment.search(/^\*\n\s+\*\s+/) >= 0) {
-        for (const c of comment
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter((line) => line !== '' && line.search(/^\*\s+@test\s+\{/) >= 0)
-          .map((s) => s.replace(/^\*\s+@test\s+\{/, ''))) {
-          comments.push(c);
-        }
+      if (isBlock && comment.search(regex) >= 0) {
+        comments.push(comment);
       }
     }),
     allowHashBang: true,
-  });
-  for (let c of comments) {
-    const astGiven = parseExpressionAt(c, 0, { ...opts, sourceType: 'script' });
-    const given = c.slice(astGiven.start, astGiven.end);
-    c = c.slice(astGiven.end + 2);
-    const expectAst = parseExpressionAt(c, 0, { ...opts, sourceType: 'script' });
-    const expect = c.slice(expectAst.start, expectAst.end);
-    yield { given, expect };
+  };
+  parse(text, options);
+  return comments;
+};
+
+/**
+ * @param {string} doc
+ * @test {parseDoc(' * @test {some} thing')} { test: ['{some} thing'] }
+ * @test {parseDoc(' * @name myTest')} { name: ['myTest'] }
+ * @test {parseDoc('')} {}
+ * @test {parseDoc('@asdf')} {}
+ * @test {parseDoc(' * @asdf ')} {}
+ * @returns {Record<string, string[]>}
+ */
+const parseDoc = (doc) => {
+  const dict = {};
+  const regex = new RegExp(`[ ]+[*][ ]+@([-a-zA-Z0-9]+)[ ]+([^\n\r]*)`, 'g');
+  const match = doc.matchAll(regex);
+  for (const m of match) {
+    m[1] = (m[1] || '').trim();
+    m[2] = (m[2] || '').trim();
+    if (m[1] && m[2]) {
+      let name = m[1];
+      if (dict[name] === undefined) {
+        dict[name] = [];
+      }
+      const value = m[2];
+      dict[name].push(value.trim());
+    }
+  }
+  return dict;
+};
+
+/**
+ * @param {string} text
+ * @return {Generator<{expected: string, actual: string}>}
+ */
+const iterDocs = function* (text) {
+  const cases = getDocs(text).map((doc) => parseDoc(doc)).filter(({ test }) => test !== undefined);
+  for (const testCase of cases) {
+    for (const t of testCase.test) {
+      let c = t.slice(1);
+      const astGiven = parseExpressionAt(c, 0, { ...OPTIONS_ACORN, sourceType: 'script' });
+      const actual = c.slice(astGiven.start, astGiven.end);
+      c = c.slice(astGiven.end + 2);
+      const expectAst = parseExpressionAt(c, 0, { ...OPTIONS_ACORN, sourceType: 'script' });
+      const expected = c.slice(expectAst.start, expectAst.end);
+      yield { actual, expected, ...Object.fromEntries(Object.entries(testCase).map(([k, v]) => [k, v.join(', ')])) };
+    }
   }
 };
 
