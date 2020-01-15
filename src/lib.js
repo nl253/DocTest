@@ -4,7 +4,7 @@ const { readFile } = require('fs').promises;
 const { parseExpressionAt, parse } = require('acorn');
 // eslint-disable-next-line no-unused-vars
 const { assert } = require('chai');
-const { green, yellow, magenta, gray } = require('chalk');
+const { green, yellow, magenta, gray, cyan } = require('chalk');
 
 const { argMin } = require('./utils');
 const log = require('./logger')();
@@ -117,9 +117,15 @@ const run = async (file) => {
       log.log('');
       log.log(gray(code));
       log.log('');
+      let i = 0;
       for (const { expected, actual } of cases) {
-        log.log(actual.padEnd(cases.reduce((prev, c) => Math.max(prev, c.actual.length), 10), ' ') + ' is ' + expected);
+        log.startTime('   ');
+        log.log(cyan('  CASE #' + (++i).toString()));
+        log.log('    assert ' + actual.padEnd(cases.reduce((prev, c) => Math.max(prev, c.actual.length), 10), ' '));
+        log.log('    is     ' + expected);
         assert.deepStrictEqual(eval(actual), eval(expected));
+        log.endTime('   ');
+        log.log(green('    OK\\n'));
       }
     }
   `);

@@ -21,6 +21,7 @@ program
         return;
       }
     }
+    log.endTime('all');
   });
 
 program.parse(process.argv);
