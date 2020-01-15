@@ -1,6 +1,8 @@
 const { red, yellow } = require('chalk');
 const util = require('util');
 
+let LOGGER;
+
 class Logger {
   constructor(lvl = 0) {
     this.lvl = lvl;
@@ -62,8 +64,17 @@ class Logger {
   endTime(label = 'main') {
     // @ts-ignore
     const diff = new Date().getTime() - this.START_TM[label];
-    return this.log(`took: ${diff}ms`);
+    return this.log(`${label} took: ${diff}ms`);
   }
 }
 
-module.exports = Logger;
+/**
+ * @param {number} [lvl]
+ * @return {Logger}
+ */
+module.exports = (lvl) => {
+  if (LOGGER === undefined) {
+    LOGGER = new Logger(lvl);
+  }
+  return LOGGER;
+};

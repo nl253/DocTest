@@ -26,5 +26,12 @@ const zipWith = (xs, ys, f) => {
  * @param {...*} xs
  * @return {Array<*>}
  * @test {truthy(0, 1, 2, 3)} [1, 2, 3]
+ * @test {truthy(0, 1, 2, 3)} [1, 2, 3]
  */
 const truthy = (...xs) => xs.filter(Boolean);
+
+module.exports = {
+  truthy,
+  add,
+  zipWith,
+};

@@ -1,0 +1,14 @@
+[
+  ".git",
+  ".history",
+  ".hg",
+  ".cache",
+  ".backup",
+  ".bak",
+  ".svn",
+  "bower_modules",
+  "node_modules",
+  "bin",
+  "docs",
+  "test"
+]

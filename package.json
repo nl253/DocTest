@@ -82,6 +82,8 @@
   "files": [
     "README.md",
     "schema.json",
+    "src/ignore-patterns.json",
+    "src/collect-files.js",
     "bin/index.js",
     "src/logger.js",
     "src/lib.js",
@@ -104,7 +106,7 @@
     "doc-test": "bin/index.js"
   },
   "scripts": {
-    "example": "npm run start ./examples/1.json",
+    "example": "npm run start ./examples/utils.js",
     "start": "node ./bin/index.js",
     "test": "npx jest --ci",
     "doc": "bash -c \"echo -e 'GENERATING DOCS\\n' && rm -rf ./docs && npx jsdoc --pedantic -d ./docs -R ./README* --recurse ./src ./bin ./examples && git add -f ./docs && git commit -am 'Update docs' -n\"",

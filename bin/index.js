@@ -3,10 +3,8 @@ const program = require('commander');
 
 const { description, name, version } = require('../package.json');
 const run = require('../src/lib.js');
-const Logger = require('../src/logger.js');
-const { collectFiles } = require('../src/utils');
-
-const log = new Logger(0);
+const collectFiles = require('../src/collect-files.js');
+const log = require('../src/logger.js')();
 
 program
   .version(version)
@@ -14,18 +12,13 @@ program
   .name(name)
   .arguments('[files...]')
   .action(async (files) => {
+    log.startTime('all');
     for await (const fPath of collectFiles(files.length === 0 ? ['.'] : files)) {
       try {
-        log.startTime('run');
         await run(fPath);
-        log.log('');
-        log.endTime('run');
-        log.log('');
       } catch (e) {
-        if (e !== null) {
-          console.error(e);
-          return;
-        }
+        console.error(e);
+        return;
       }
     }
   });
