@@ -1,131 +1,163 @@
+/* eslint-disable no-continue */
 const path = require('path');
 const { readFile } = require('fs').promises;
 
 const { parseExpressionAt, parse } = require('acorn');
 // eslint-disable-next-line no-unused-vars
 const { assert } = require('chai');
+// eslint-disable-next-line no-unused-vars
 const { green, yellow, magenta, gray, cyan } = require('chalk');
 
 const { argMin } = require('./utils');
 const log = require('./logger')();
 
-const OPTIONS_ACORN = {
-  allowImportExportEverywhere: false,
-  allowReserved: true,
-  allowReturnOutsideFunction: false,
-  ecmaVersion: 10,
-};
-
-// const $float = () => Math.random() < 0.5 ? -1 : 1 * (Math.random() * Number.MAX_SAFE_INTEGER);
-// const $int = () => Math.round($float());
+const PARSE_DOC_REGEX = /^(\s+\*\s+@test\s+\{\s*)/m;
+// noinspection JSUnusedLocalSymbols
+const GET_DOCS_REGEX = /^\*\r?\n\s+\*\s+/;
 
 /**
+ * @notest
  * @param {string} s
- * @return {Array<{code: string, text: string}>}
+ * @param {{docRegex: RegExp, docIgnoreRegex: RegExp}} opts
+ * @return {Generator<{code: string, doc: string}>}
  */
-const getDocs = (s) => {
-  const regex = /^\*\r?\n\s+\*\s+/;
+const getDocs = function* (s, opts) {
   const comments = [];
   const options = {
-    ...OPTIONS_ACORN,
+    allowImportExportEverywhere: false,
+    allowReserved: true,
+    allowReturnOutsideFunction: false,
+    preserveParens: true,
+    ecmaVersion: 10,
     sourceType: 'module',
-    onComment: ((isBlock, text, start, end) => {
-      if (isBlock && text.search(regex) >= 0) {
-        comments.push({ text, start, end });
+    onComment: ((isBlock, doc, start, end) => {
+      if (isBlock && doc.search(GET_DOCS_REGEX) >= 0) {
+        comments.push({ doc, start, end });
       }
     }),
     allowHashBang: true,
   };
   const root = parse(s, options);
-  return comments.map(({ end: commentEnd, text: commentText }) => {
-    const { end: endCode } = argMin(
-      root.body.filter(({ type }) => type.endsWith('Declaration')),
-      ({ start: startCode }) => Math.abs(commentEnd - startCode),
-    );
-    return { code: s.slice(commentEnd, endCode).trim(), text: commentText.trim() };
-  });
+  for (const { end: commentEnd, doc: commentText } of comments) {
+    if (commentText.search(opts.docRegex) >= 0 && commentText.search(opts.docIgnoreRegex) < 0) {
+      const { end: endCode } = argMin(
+        root.body.filter(({ type }) => type.endsWith('Declaration')),
+        ({ start: startCode }) => Math.abs(commentEnd - startCode),
+      );
+      yield {
+        code: s.slice(commentEnd, endCode).trim(),
+        doc: commentText.trim(),
+      };
+    }
+  }
 };
 
 /**
+ * @test {parseDoc(' * @test {woo} myTest').next().value} ({ left: 'woo', right: 'myTest' })
+ * @test {parseDoc(' * @test {some} thing').next().value} ({ left: 'some', right: 'thing' })
+ * @test {parseDoc('').next().value} undefined
+ * @test {parseDoc('@asdf').next().value} undefined
+ * @test {parseDoc(' * @asdf ').next().value} undefined
  * @param {string} doc
- * @test {parseDoc(' * @name myTest')} ({ name: ['myTest'] })
- * @test {parseDoc(' * @test {some} thing')} ({ test: ['{some} thing'] })
- * @test {parseDoc('')} ({})
- * @test {parseDoc('@asdf')} ({})
- * @test {parseDoc(' * @asdf ')} ({})
- * @returns {Record<string, string[]>}
+ * @returns {Generator<{ left: string, right: string }>}
  */
-const parseDoc = (doc) => {
-  const dict = {};
+const parseDoc = function* (doc) {
+  // noinspection JSUnusedLocalSymbols
   // eslint-disable-next-line security/detect-non-literal-regexp,no-control-regex
-  const regex = new RegExp('[ ]+[*][ ]+@([-a-zA-Z0-9]+)[ ]+([^\n\r]*)', 'g');
-  const match = doc.matchAll(regex);
-  for (const m of match) {
-    m[1] = (m[1] || '').trim();
-    m[2] = (m[2] || '').trim();
-    if (m[1] && m[2]) {
-      const name = m[1];
-      if (dict[name] === undefined) {
-        dict[name] = [];
-      }
-      const value = m[2];
-      dict[name].push(value.trim());
+  let ptr = 0;
+  // noinspection JSUnusedLocalSymbols
+  let idx;
+  let m;
+  while (true) {
+    idx = doc.slice(ptr).search(PARSE_DOC_REGEX);
+    if (idx < 0) {
+      break;
     }
+    m = doc.slice(ptr).match(PARSE_DOC_REGEX);
+    ptr += idx + m[1].length;
+    let left;
+    try {
+      left = parseExpressionAt(doc, ptr);
+    } catch (e) {
+      log.error('parsing left', doc.slice(ptr));
+      throw e;
+    }
+    ptr += left.end - left.start;
+    while (doc[ptr].search(/\s/) >= 0) ptr++;
+    ptr++;
+    while (doc[ptr].search(/\s/) >= 0) ptr++;
+    let right;
+    try {
+      right = parseExpressionAt(doc.slice(0, ptr + doc.slice(ptr).search(/\n|$/)), ptr);
+    } catch (e) {
+      log.error('left', doc.slice(left.start, left.end));
+      log.error('parsing right', doc.slice(ptr));
+      throw e;
+    }
+    ptr += right.end - right.start;
+    const result = {
+      left: doc.slice(left.start, left.end),
+      right: doc.slice(right.start, right.end),
+    };
+    if (result.left.startsWith('{') && result.left.endsWith('}')) {
+      result.left = `(${result.left})`;
+    }
+    if (result.right.startsWith('{') && result.right.endsWith('}')) {
+      result.right = `(${result.right})`;
+    }
+    yield result;
   }
-  return dict;
 };
 
 
 /**
+ * @notest
  * @param {string} s
- * @return {Generator<{cases: Array<{expected: string, actual: string}>, code: string}>}
+ * @param {{codeRegex: RegExp, codeIgnoreRegex: RegExp, docRegex: RegExp, docIgnoreRegex: RegExp}} opts
+ * @return {Generator<{cases: Generator<{left: *, right: *}>, code: string}>}
  */
-const iterDocs = function* (s) {
-  const docs = getDocs(s)
-    .map(({ text, ...doc }) => ({ tags: parseDoc(text), ...doc }))
-    .filter(({ tags }) => tags.test !== undefined);
-  for (const { code, tags } of docs) {
-    const cases = [];
-    for (const testDoc of tags.test) {
-      const firstVal = testDoc.slice(1);
-      const astExpr = parseExpressionAt(firstVal, 0, { ...OPTIONS_ACORN, sourceType: 'script' });
-      cases.push({
-        expected: firstVal.slice(astExpr.end + 2),
-        actual: firstVal.slice(astExpr.start, astExpr.end),
-      });
+const iterDocs = function* (s, opts) {
+  for (const { doc, code } of getDocs(s, opts)) {
+    if (code.search(opts.codeRegex) >= 0 && code.search(opts.codeIgnoreRegex) < 0) {
+      yield { cases: parseDoc(doc), code };
     }
-    yield { cases, code };
   }
 };
 
 /**
+ * @notest
  * @param {string} file
+ * @param {{codeRegex, codeIgnoreRegex, docRegex, docIgnoreRegex}} opts
  * @returns {Promise<boolean>}
  */
-const run = async (file) => {
+const run = async (file, opts) => {
   log.log('');
   log.startTime('run');
   const p = path.resolve(file);
   const text = await readFile(p, { encoding: 'utf-8' });
-  log.log(yellow(p));
+  log.log(yellow.underline(path.relative(process.cwd(), p)));
   // eslint-disable-next-line no-unused-vars
-  const docsIterator = iterDocs(text);
+  const docsIterator = iterDocs(text, opts);
+  // eslint-disable-next-line no-eval
   eval(`${text};
     for (const { cases, code } of docsIterator) {
       log.log('');
-      log.log(magenta.bold('TEST'));
-      log.log('');
-      log.log(gray(code));
+      log.log(magenta.bold('TEST') + ' ' + gray(code.replace(/^/m, '  ').trimLeft()));
       log.log('');
       let i = 0;
-      for (const { expected, actual } of cases) {
-        log.startTime('   ');
-        log.log(cyan('  CASE #' + (++i).toString()));
-        log.log('    assert ' + actual.padEnd(cases.reduce((prev, c) => Math.max(prev, c.actual.length), 10), ' '));
-        log.log('    is     ' + expected);
-        assert.deepStrictEqual(eval(actual), eval(expected));
-        log.endTime('   ');
-        log.log(green('    OK\\n'));
+      for (const { left, right } of cases) {
+        try {
+          assert.deepStrictEqual(eval(left), eval(right));
+        } catch (e) {
+          log.error('left ', left);
+          log.error('right', right);
+          throw e;
+        }
+        log.log(cyan('case #' + (++i).toString()) + ' assert ' + green(left.padEnd(50, ' ')));
+        log.log('        is     ' + green(right));
+      }
+      if (i === 0) {
+        log.warn('no tests');
       }
     }
   `);

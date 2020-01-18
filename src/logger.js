@@ -10,6 +10,7 @@ class Logger {
   }
 
   /**
+   * @notest
    * @param {number} lvl
    * @param {string[]} msg
    * @param {function(string): string} fmt
@@ -22,6 +23,7 @@ class Logger {
   }
 
   /**
+   * @notest
    * @param {...string} msg
    */
   debug(...msg) {
@@ -29,6 +31,7 @@ class Logger {
   }
 
   /**
+   * @notest
    * @param {...string} msg
    */
   info(...msg) {
@@ -36,6 +39,7 @@ class Logger {
   }
 
   /**
+   * @notest
    * @param {...string} msg
    */
   log(...msg) {
@@ -43,6 +47,7 @@ class Logger {
   }
 
   /**
+   * @notest
    * @param {...string} msg
    */
   warn(...msg) {
@@ -50,21 +55,30 @@ class Logger {
   }
 
   /**
+   * @notest
    * @param {...string} msg
    */
   error(...msg) {
     return this.write(4, msg, red);
   }
 
+  /**
+   * @notest
+   * @param {string} label
+   */
   startTime(label = 'main') {
     // @ts-ignore
     this.START_TM[label] = new Date().getTime();
   }
 
+  /**
+   * @notest
+   * @param {string} label
+   */
   endTime(label = 'main') {
     // @ts-ignore
     const diff = new Date().getTime() - this.START_TM[label];
-    return this.log(`${label} took   ${diff}ms`);
+    return this.log(`${label} took ${diff}ms`);
   }
 }
 

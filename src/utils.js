@@ -19,6 +19,7 @@ const argMin = (xs, f) => {
   return smallest;
 };
 
+
 module.exports = {
   argMin,
 };
