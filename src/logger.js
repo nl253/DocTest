@@ -78,7 +78,7 @@ class Logger {
   endTime(label = 'main') {
     // @ts-ignore
     const diff = new Date().getTime() - this.START_TM[label];
-    return this.log(`${label} took ${diff}ms`);
+    return this.info(`${label} took ${diff}ms`);
   }
 }
 

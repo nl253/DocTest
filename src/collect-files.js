@@ -44,18 +44,30 @@ const preProcessFn = (ns) => ns.map((n) => resolve(n)).filter((n) => filterFn(n)
  * @yields {string}
  * @return {AsyncGenerator<string>}
  */
-const collectFiles = async function* (nodes, opts) {
+const collectFiles = async function* (nodes, { fileIgnoreRegex, fileRegex, log }) {
   for (const n of preProcessFn(nodes)) {
-    if (n.search(opts.fileIgnoreRegex) < 0) {
-      const stats = await lstat(n);
-      if (stats.isFile() && n.search(opts.fileRegex) >= 0 && n.search(opts.fileIgnoreRegex) < 0) {
+    const stats = await lstat(n);
+    if (stats.isFile()) {
+      if ((n.search(fileRegex) >= 0) && (n.search(fileIgnoreRegex) < 0)) {
+        log.debug(`found file ${n}`);
         yield n;
-      } else if (stats.isDirectory()) {
+      } else {
+        log.debug(`file ${n} filtered out`);
+      }
+    } else if (stats.isDirectory()) {
+      if (n.search(fileIgnoreRegex) < 0) {
+        log.debug(`found dir ${n}`);
         const children = await readdir(n);
-        yield* collectFiles(children.map((c) => join(n, c)), opts);
+        log.debug(`${children.length} children`);
+        yield* collectFiles(children.map((c) => join(n, c)), {
+          fileIgnoreRegex,
+          fileRegex,
+          log,
+        });
+      } else {
+        log.debug(`dir ${n} filtered out`);
       }
     }
   }
 };
-
 module.exports = collectFiles;
