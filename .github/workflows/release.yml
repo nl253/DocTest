@@ -1,9 +1,9 @@
 name: Release CI
 
-on: 
+on:
   release:
     types: [published]
-    branches: 
+    branches:
       - master
 
 env:
@@ -16,19 +16,20 @@ jobs:
     strategy:
       max-parallel: 1
       fail-fast: true
-      matrix:
-        node: ['12']
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
         with:
           ref: ${{ github.ref }}
-      - uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node }}
-      - name: Install Node Modules
-        run: npm install
       - uses: JS-DevTools/npm-publish@v1
         with:
           token: ${{ secrets.NPM_TOKEN }}
+      - name: Create Release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
