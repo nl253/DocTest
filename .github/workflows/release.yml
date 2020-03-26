@@ -6,8 +6,28 @@ on:
       - master
 
 jobs:
-  test:
-    name: Publish
+  release:
+    name: Release
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          ref: ${{ github.ref }}
+      - name: Create Release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ github.run_id }}
+          body: ''
+          release_name: Release ${{ github.run_id }}
+          draft: false
+          prerelease: false
+  publishNPM:
+    name: Publish To NPM
     strategy:
       max-parallel: 1
       fail-fast: true
@@ -24,21 +44,21 @@ jobs:
       - uses: JS-DevTools/npm-publish@v1
         with:
           token: ${{ secrets.NPM_TOKEN }}
+  publishGitHub:
+    name: Publish to GitHub
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          ref: ${{ github.ref }}
       - uses: actions/setup-node@v1
         with:
           node-version: '12.x'
           registry-url: 'https://npm.pkg.github.com'
       - run: npm install
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets. NPM_TOKEN }}
-      - name: Create Release
-        uses: actions/create-release@latest
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+      - uses: JS-DevTools/npm-publish@v1
         with:
-          tag_name: ${{ github.run_id }}
-          body: ''
-          release_name: Release ${{ github.run_id }}
-          draft: false
-          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
