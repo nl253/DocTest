@@ -1,8 +1,7 @@
 name: Release CI
 
 on:
-  release:
-    types: [published]
+  push:
     branches:
       - master
 
